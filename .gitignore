@@ -208,6 +208,11 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
 # PyPI configuration file
 .pypirc
 
