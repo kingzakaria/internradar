@@ -24,6 +24,8 @@ BASE_URL = "http://localhost:8000"
 # Fixed "today" so the generated dates do not change between runs.
 REFERENCE_TIME = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 COMPANY_POOL_SIZE = 300
+BOARDS = ("board_a", "board_b", "board_c")
+DUPLICATE_RATE = 0.18  # share of offers that are also published on a second board
 INTERNSHIP_CONTRACTS = {"stage", "pfe", "alternance"}
 
 
@@ -44,6 +46,7 @@ class FakeRecord:
     skills: tuple[str, ...]
     description: str
     posted_at: datetime
+    boards: tuple[str, ...]
 
     def to_offer(self) -> Offer:
         """Convert to the standard Offer format used by the whole project."""
@@ -85,8 +88,18 @@ def _duration(rng: random.Random, contract: str, language: str) -> tuple[int | N
     return months, seed.DURATION_TEXT[language].format(n=months)
 
 
+def pick_boards(rng: random.Random) -> tuple[str, ...]:
+    """Choose the board(s) where an offer is published (sometimes two)."""
+    first = rng.choice(BOARDS)
+    if rng.random() < DUPLICATE_RATE:
+        second = rng.choice([b for b in BOARDS if b != first])
+        return tuple(sorted((first, second)))
+    return (first,)
+
+
 def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
     rng = random.Random(seed_value)
+    board_rng = random.Random(seed_value + 1)  # separate generator: keeps old data unchanged
     companies = build_company_pool(rng)
     families = list(seed.JOB_FAMILIES.items())
     city_weights = [weight for _, _, weight in seed.CITIES]
@@ -137,6 +150,7 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
                 skills=skills,
                 description=description,
                 posted_at=posted_at,
+                boards=pick_boards(board_rng),
             )
         )
     return records
@@ -162,17 +176,19 @@ def save_to_sqlite(records: list[FakeRecord], db_path: str | Path) -> None:
                 duration_months INTEGER,
                 skills TEXT NOT NULL,
                 description TEXT NOT NULL,
-                posted_at TEXT NOT NULL
+                posted_at TEXT NOT NULL,
+                boards TEXT NOT NULL
             )
             """
         )
         conn.executemany(
-            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     r.id, r.title, r.company, r.city, r.country, r.language, r.family,
                     r.contract, int(r.is_internship), r.duration_months,
                     ", ".join(r.skills), r.description, r.posted_at.isoformat(),
+                    ", ".join(r.boards),
                 )
                 for r in records
             ],
@@ -191,9 +207,11 @@ def main() -> None:
 
     internships = sum(r.is_internship for r in records)
     countries = Counter(r.country for r in records)
+    duplicated = sum(len(r.boards) > 1 for r in records)
     print(f"Saved {len(records)} synthetic offers to {args.db}")
     print(f"  internships: {internships} ({internships / len(records):.0%})")
     print(f"  by country: {dict(countries)}")
+    print(f"  on two boards (duplicates): {duplicated} ({duplicated / len(records):.0%})")
 
 
 if __name__ == "__main__":
