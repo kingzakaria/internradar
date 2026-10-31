@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ offer['title'] }} – Board A</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    .meta { color: #555; }
+    .badge.expired { background: #fde8e8; color: #b42318; padding: 2px 8px; border-radius: 10px; }
+    .deadline { color: #444; }
+    .description { margin: 1.2rem 0; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <article class="offer-detail">
+    <h1>{{ offer['title'] }}</h1>
+    <p class="meta">
+      <span class="company">{{ offer['company'] }}</span> ·
+      <span class="city">{{ offer['city_display'] or 'Lieu non précisé' }}</span> ·
+      Publié : <span class="date">{{ offer['date_display'] }}</span>
+    </p>
+    {% if offer['is_expired'] %}
+      <p><span class="badge expired">Offre expirée</span></p>
+    {% else %}
+      <p class="deadline">Date limite : {{ offer['expires_at'][:10] }}</p>
+    {% endif %}
+
+    {# description_html comes from our own generator, so it is safe to render as HTML #}
+    <div class="description">{{ offer['description_html'] | safe }}</div>
+
+    <p><a href="/board_a/offers">&larr; Retour aux offres</a></p>
+  </article>
+</body>
+</html>

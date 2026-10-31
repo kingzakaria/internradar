@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offres de stage et d'emploi – Board A</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    ul.offers { list-style: none; padding: 0; }
+    li.offer { border: 1px solid #ddd; border-radius: 6px; padding: .8rem 1rem; margin-bottom: .6rem; }
+    a.offer-title { font-weight: bold; font-size: 1.05rem; color: #0b5cad; text-decoration: none; }
+    li.offer span { display: inline-block; margin-right: .8rem; color: #555; font-size: .9rem; }
+    .badge.expired { background: #fde8e8; color: #b42318; padding: 2px 8px; border-radius: 10px; }
+    nav.pagination a { margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Offres de stage et d'emploi</h1>
+  <p class="summary">Page {{ page }} sur {{ pages }} – {{ total }} offres</p>
+
+  <ul class="offers">
+  {% for o in offers %}
+    <li class="offer">
+      <a class="offer-title" href="/board_a/offers/{{ o['id'] }}">{{ o['title'] }}</a><br>
+      <span class="company">{{ o['company'] }}</span>
+      <span class="city">{{ o['city_display'] or 'Lieu non précisé' }}</span>
+      <span class="date">{{ o['date_display'] }}</span>
+      {% if o['is_expired'] %}<span class="badge expired">Offre expirée</span>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+
+  <nav class="pagination">
+    {% if page > 1 %}<a rel="prev" href="/board_a/offers?page={{ page - 1 }}">&larr; Précédent</a>{% endif %}
+    {% if page < pages %}<a rel="next" href="/board_a/offers?page={{ page + 1 }}">Suivant &rarr;</a>{% endif %}
+  </nav>
+</body>
+</html>
