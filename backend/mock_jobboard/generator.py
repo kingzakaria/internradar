@@ -10,7 +10,9 @@ Usage, from the backend folder:
 from __future__ import annotations
 
 import argparse
+import html
 import random
+import re
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass
@@ -42,6 +44,9 @@ EN_MONTHS = [
     "August", "September", "October", "November", "December",
 ]
 
+# How a board formats the description, with weights.
+DESCRIPTION_STYLES = [("plain", 25), ("paragraphs", 30), ("bullets", 25), ("noisy", 20)]
+
 
 @dataclass(frozen=True)
 class FakeRecord:
@@ -58,12 +63,14 @@ class FakeRecord:
     is_internship: bool
     duration_months: int | None
     skills: tuple[str, ...]
-    description: str
+    description: str  # clean text = ground truth
     posted_at: datetime  # real date = ground truth
     boards: tuple[str, ...]
     city_display: str  # messy city shown on the website ("" = missing)
     date_style: str  # iso, slash, long or relative
     date_display: str  # date text shown on the website
+    description_style: str  # plain, paragraphs, bullets or noisy
+    description_html: str  # description as the website shows it
 
     def to_offer(self) -> Offer:
         """Convert to the standard Offer format used by the whole project."""
@@ -155,12 +162,38 @@ def messy_date(rng: random.Random, posted_at: datetime, language: str) -> tuple[
     return style, text
 
 
+def messy_description(
+    rng: random.Random, description: str, skills: tuple[str, ...], company: str
+) -> tuple[str, str]:
+    """Return (style, html): the description as a board might display it."""
+    style = rng.choices(
+        [s for s, _ in DESCRIPTION_STYLES], weights=[w for _, w in DESCRIPTION_STYLES]
+    )[0]
+    # html.escape turns ' into &#x27; like many real pages do.
+    sentences = [html.escape(s) for s in re.split(r"(?<=[.?!])\s+", description) if s]
+
+    if style == "plain":
+        body = "\n   " + "   ".join(sentences) + "\n  "
+    elif style == "paragraphs":
+        body = "".join(f"<p>{s}</p>" for s in sentences)
+    elif style == "bullets":
+        items = "".join(f"<li>{html.escape(skill)}</li>" for skill in skills)
+        rest = " ".join(sentences[1:])
+        body = f"<p>{sentences[0]}</p><ul>{items}</ul><p>{rest}</p>"
+    else:  # noisy
+        joined = "<br>&nbsp;".join(sentences)
+        joined = joined.replace(company, f"<strong>{company}</strong>")
+        body = f'<div class="desc">{joined}</div>'
+    return style, body
+
+
 def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
     rng = random.Random(seed_value)
     # Separate generators for the "mess": they keep the clean data unchanged.
     board_rng = random.Random(seed_value + 1)
     mess_rng = random.Random(seed_value + 2)
     date_rng = random.Random(seed_value + 3)
+    html_rng = random.Random(seed_value + 4)
     companies = build_company_pool(rng)
     families = list(seed.JOB_FAMILIES.items())
     city_weights = [weight for _, _, weight in seed.CITIES]
@@ -196,6 +229,9 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
             days=rng.randint(0, 60), hours=rng.randint(0, 23), minutes=rng.randint(0, 59)
         )
         date_style, date_display = messy_date(date_rng, posted_at, language)
+        description_style, description_html = messy_description(
+            html_rng, description, skills, company
+        )
 
         records.append(
             FakeRecord(
@@ -216,6 +252,8 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
                 city_display=messy_city(mess_rng, city),
                 date_style=date_style,
                 date_display=date_display,
+                description_style=description_style,
+                description_html=description_html,
             )
         )
     return records
@@ -245,18 +283,21 @@ def save_to_sqlite(records: list[FakeRecord], db_path: str | Path) -> None:
                 boards TEXT NOT NULL,
                 city_display TEXT NOT NULL,
                 date_style TEXT NOT NULL,
-                date_display TEXT NOT NULL
+                date_display TEXT NOT NULL,
+                description_style TEXT NOT NULL,
+                description_html TEXT NOT NULL
             )
             """
         )
         conn.executemany(
-            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     r.id, r.title, r.company, r.city, r.country, r.language, r.family,
                     r.contract, int(r.is_internship), r.duration_months,
                     ", ".join(r.skills), r.description, r.posted_at.isoformat(),
                     ", ".join(r.boards), r.city_display, r.date_style, r.date_display,
+                    r.description_style, r.description_html,
                 )
                 for r in records
             ],
@@ -280,14 +321,16 @@ def main() -> None:
     missing = sum(r.city_display == "" for r in records)
     variants = sum(r.city_display not in ("", r.city) for r in records)
     date_styles = Counter(r.date_style for r in records)
+    desc_styles = Counter(r.description_style for r in records)
     print(f"Saved {total} synthetic offers to {args.db}")
     print(f"  internships: {internships} ({internships / total:.0%})")
     print(f"  by country: {dict(countries)}")
     print(f"  on two boards (duplicates): {duplicated} ({duplicated / total:.0%})")
     print(f"  city missing: {missing} | city spelled differently: {variants}")
     print(f"  date styles: {dict(date_styles)}")
-    sample = records[0]
-    print(f"  example: posted_at={sample.posted_at:%Y-%m-%d} shown as {sample.date_display!r}")
+    print(f"  description styles: {dict(desc_styles)}")
+    sample = next(r for r in records if r.description_style == "noisy")
+    print(f"  example (noisy): {sample.description_html[:110]!r}")
 
 
 if __name__ == "__main__":
