@@ -47,6 +47,10 @@ EN_MONTHS = [
 # How a board formats the description, with weights.
 DESCRIPTION_STYLES = [("plain", 25), ("paragraphs", 30), ("bullets", 25), ("noisy", 20)]
 
+# An offer stays open between 30 and 90 days after it was posted.
+MIN_OPEN_DAYS = 30
+MAX_OPEN_DAYS = 90
+
 
 @dataclass(frozen=True)
 class FakeRecord:
@@ -71,6 +75,8 @@ class FakeRecord:
     date_display: str  # date text shown on the website
     description_style: str  # plain, paragraphs, bullets or noisy
     description_html: str  # description as the website shows it
+    expires_at: datetime  # application deadline
+    is_expired: bool  # True if the deadline is before REFERENCE_TIME
 
     def to_offer(self) -> Offer:
         """Convert to the standard Offer format used by the whole project."""
@@ -194,6 +200,7 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
     mess_rng = random.Random(seed_value + 2)
     date_rng = random.Random(seed_value + 3)
     html_rng = random.Random(seed_value + 4)
+    expiry_rng = random.Random(seed_value + 5)
     companies = build_company_pool(rng)
     families = list(seed.JOB_FAMILIES.items())
     city_weights = [weight for _, _, weight in seed.CITIES]
@@ -232,6 +239,7 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
         description_style, description_html = messy_description(
             html_rng, description, skills, company
         )
+        expires_at = posted_at + timedelta(days=expiry_rng.randint(MIN_OPEN_DAYS, MAX_OPEN_DAYS))
 
         records.append(
             FakeRecord(
@@ -254,6 +262,8 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
                 date_display=date_display,
                 description_style=description_style,
                 description_html=description_html,
+                expires_at=expires_at,
+                is_expired=expires_at < REFERENCE_TIME,
             )
         )
     return records
@@ -285,12 +295,14 @@ def save_to_sqlite(records: list[FakeRecord], db_path: str | Path) -> None:
                 date_style TEXT NOT NULL,
                 date_display TEXT NOT NULL,
                 description_style TEXT NOT NULL,
-                description_html TEXT NOT NULL
+                description_html TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                is_expired INTEGER NOT NULL
             )
             """
         )
         conn.executemany(
-            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     r.id, r.title, r.company, r.city, r.country, r.language, r.family,
@@ -298,6 +310,7 @@ def save_to_sqlite(records: list[FakeRecord], db_path: str | Path) -> None:
                     ", ".join(r.skills), r.description, r.posted_at.isoformat(),
                     ", ".join(r.boards), r.city_display, r.date_style, r.date_display,
                     r.description_style, r.description_html,
+                    r.expires_at.isoformat(), int(r.is_expired),
                 )
                 for r in records
             ],
@@ -322,6 +335,7 @@ def main() -> None:
     variants = sum(r.city_display not in ("", r.city) for r in records)
     date_styles = Counter(r.date_style for r in records)
     desc_styles = Counter(r.description_style for r in records)
+    expired = sum(r.is_expired for r in records)
     print(f"Saved {total} synthetic offers to {args.db}")
     print(f"  internships: {internships} ({internships / total:.0%})")
     print(f"  by country: {dict(countries)}")
@@ -329,8 +343,7 @@ def main() -> None:
     print(f"  city missing: {missing} | city spelled differently: {variants}")
     print(f"  date styles: {dict(date_styles)}")
     print(f"  description styles: {dict(desc_styles)}")
-    sample = next(r for r in records if r.description_style == "noisy")
-    print(f"  example (noisy): {sample.description_html[:110]!r}")
+    print(f"  expired offers: {expired} ({expired / total:.0%})")
 
 
 if __name__ == "__main__":
