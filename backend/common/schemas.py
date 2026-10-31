@@ -30,6 +30,7 @@ class Offer(BaseModel):
     description: str = ""
     posted_at: datetime | None = None
     fetched_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    is_synthetic: bool = False 
 
     @property
     def offer_id(self) -> str:
