@@ -26,7 +26,21 @@ REFERENCE_TIME = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 COMPANY_POOL_SIZE = 300
 BOARDS = ("board_a", "board_b", "board_c")
 DUPLICATE_RATE = 0.18  # share of offers that are also published on a second board
+MISSING_CITY_RATE = 0.05  # share of offers shown without any city
+CITY_VARIANT_RATE = 0.10  # share of offers where the city is spelled differently
 INTERNSHIP_CONTRACTS = {"stage", "pfe", "alternance"}
+
+# Date styles a board can use, with weights.
+DATE_STYLES = [("iso", 25), ("slash", 30), ("long", 25), ("relative", 20)]
+MAX_RELATIVE_DAYS = 30  # older offers never use "3 days ago" style
+FR_MONTHS = [
+    "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+    "août", "septembre", "octobre", "novembre", "décembre",
+]
+EN_MONTHS = [
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+]
 
 
 @dataclass(frozen=True)
@@ -36,7 +50,7 @@ class FakeRecord:
     id: int
     title: str
     company: str
-    city: str
+    city: str  # clean city = ground truth
     country: str
     language: str
     family: str
@@ -45,8 +59,11 @@ class FakeRecord:
     duration_months: int | None
     skills: tuple[str, ...]
     description: str
-    posted_at: datetime
+    posted_at: datetime  # real date = ground truth
     boards: tuple[str, ...]
+    city_display: str  # messy city shown on the website ("" = missing)
+    date_style: str  # iso, slash, long or relative
+    date_display: str  # date text shown on the website
 
     def to_offer(self) -> Offer:
         """Convert to the standard Offer format used by the whole project."""
@@ -97,9 +114,53 @@ def pick_boards(rng: random.Random) -> tuple[str, ...]:
     return (first,)
 
 
+def messy_city(rng: random.Random, city: str) -> str:
+    """City as a real board might write it: sometimes missing, sometimes misspelled."""
+    roll = rng.random()
+    if roll < MISSING_CITY_RATE:
+        return ""
+    aliases = seed.CITY_ALIASES.get(city)
+    if aliases and roll < MISSING_CITY_RATE + CITY_VARIANT_RATE:
+        return rng.choice(aliases)
+    return city
+
+
+def messy_date(rng: random.Random, posted_at: datetime, language: str) -> tuple[str, str]:
+    """Return (style, text): the date as a board might display it."""
+    days_ago = (REFERENCE_TIME - posted_at).days
+    style = rng.choices(
+        [s for s, _ in DATE_STYLES], weights=[w for _, w in DATE_STYLES]
+    )[0]
+    if style == "relative" and days_ago > MAX_RELATIVE_DAYS:
+        style = "slash"  # "il y a 52 jours" looks unnatural
+
+    if style == "iso":
+        text = posted_at.strftime("%Y-%m-%d")
+    elif style == "slash":
+        text = posted_at.strftime("%d/%m/%Y")
+    elif style == "long":
+        if language == "fr":
+            text = f"{posted_at.day} {FR_MONTHS[posted_at.month - 1]} {posted_at.year}"
+        else:
+            text = f"{EN_MONTHS[posted_at.month - 1]} {posted_at.day}, {posted_at.year}"
+    else:  # relative
+        if days_ago == 0:
+            text = "aujourd'hui" if language == "fr" else "today"
+        elif days_ago == 1:
+            text = "hier" if language == "fr" else "yesterday"
+        elif language == "fr":
+            text = f"il y a {days_ago} jours"
+        else:
+            text = f"{days_ago} days ago"
+    return style, text
+
+
 def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
     rng = random.Random(seed_value)
-    board_rng = random.Random(seed_value + 1)  # separate generator: keeps old data unchanged
+    # Separate generators for the "mess": they keep the clean data unchanged.
+    board_rng = random.Random(seed_value + 1)
+    mess_rng = random.Random(seed_value + 2)
+    date_rng = random.Random(seed_value + 3)
     companies = build_company_pool(rng)
     families = list(seed.JOB_FAMILIES.items())
     city_weights = [weight for _, _, weight in seed.CITIES]
@@ -134,6 +195,7 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
         posted_at = REFERENCE_TIME - timedelta(
             days=rng.randint(0, 60), hours=rng.randint(0, 23), minutes=rng.randint(0, 59)
         )
+        date_style, date_display = messy_date(date_rng, posted_at, language)
 
         records.append(
             FakeRecord(
@@ -151,6 +213,9 @@ def generate_records(count: int, seed_value: int = 42) -> list[FakeRecord]:
                 description=description,
                 posted_at=posted_at,
                 boards=pick_boards(board_rng),
+                city_display=messy_city(mess_rng, city),
+                date_style=date_style,
+                date_display=date_display,
             )
         )
     return records
@@ -177,18 +242,21 @@ def save_to_sqlite(records: list[FakeRecord], db_path: str | Path) -> None:
                 skills TEXT NOT NULL,
                 description TEXT NOT NULL,
                 posted_at TEXT NOT NULL,
-                boards TEXT NOT NULL
+                boards TEXT NOT NULL,
+                city_display TEXT NOT NULL,
+                date_style TEXT NOT NULL,
+                date_display TEXT NOT NULL
             )
             """
         )
         conn.executemany(
-            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO offers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     r.id, r.title, r.company, r.city, r.country, r.language, r.family,
                     r.contract, int(r.is_internship), r.duration_months,
                     ", ".join(r.skills), r.description, r.posted_at.isoformat(),
-                    ", ".join(r.boards),
+                    ", ".join(r.boards), r.city_display, r.date_style, r.date_display,
                 )
                 for r in records
             ],
@@ -205,13 +273,21 @@ def main() -> None:
     records = generate_records(args.count, args.seed)
     save_to_sqlite(records, args.db)
 
+    total = len(records)
     internships = sum(r.is_internship for r in records)
     countries = Counter(r.country for r in records)
     duplicated = sum(len(r.boards) > 1 for r in records)
-    print(f"Saved {len(records)} synthetic offers to {args.db}")
-    print(f"  internships: {internships} ({internships / len(records):.0%})")
+    missing = sum(r.city_display == "" for r in records)
+    variants = sum(r.city_display not in ("", r.city) for r in records)
+    date_styles = Counter(r.date_style for r in records)
+    print(f"Saved {total} synthetic offers to {args.db}")
+    print(f"  internships: {internships} ({internships / total:.0%})")
     print(f"  by country: {dict(countries)}")
-    print(f"  on two boards (duplicates): {duplicated} ({duplicated / len(records):.0%})")
+    print(f"  on two boards (duplicates): {duplicated} ({duplicated / total:.0%})")
+    print(f"  city missing: {missing} | city spelled differently: {variants}")
+    print(f"  date styles: {dict(date_styles)}")
+    sample = records[0]
+    print(f"  example: posted_at={sample.posted_at:%Y-%m-%d} shown as {sample.date_display!r}")
 
 
 if __name__ == "__main__":
