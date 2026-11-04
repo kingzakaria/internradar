@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Internships &amp; Jobs – Board B</title>
+  <style>
+    body { font-family: Georgia, serif; background: #f6f4ef; margin: 0; color: #2b2b2b; }
+    header { background: #1f3a5f; color: #fff; padding: 1.2rem 2rem; }
+    header h1 { margin: 0; font-size: 1.5rem; }
+    main { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem; }
+    .results-count { color: #666; }
+    .job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .job-card { background: #fff; border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .job-card__title { font-size: 1.05rem; margin: 0 0 .4rem; }
+    .job-card__title a { color: #1f3a5f; text-decoration: none; }
+    .job-card__company { margin: 0; font-weight: bold; }
+    .job-card__meta { margin: .4rem 0 0; color: #666; font-size: .9rem; }
+    .status--expired { background: #fde8e8; color: #b42318; padding: 2px 8px; border-radius: 10px; font-size: .8rem; }
+    .pager { margin: 1.5rem 0; display: flex; gap: .4rem; align-items: center; }
+    .pager a, .pager .current { padding: .3rem .7rem; border-radius: 4px; text-decoration: none; }
+    .pager a { background: #fff; color: #1f3a5f; border: 1px solid #ccc; }
+    .pager .current { background: #1f3a5f; color: #fff; }
+  </style>
+</head>
+<body>
+  <header><h1>Internships &amp; Jobs</h1></header>
+  <main>
+    <p class="results-count">{{ total }} jobs found – page {{ p }} of {{ pages }}</p>
+
+    <section class="job-grid">
+    {% for job in jobs %}
+      <article class="job-card">
+        <h2 class="job-card__title"><a href="/board_b/jobs/{{ job['id'] }}">{{ job['title'] }}</a></h2>
+        <p class="job-card__company">{{ job['company'] }}</p>
+        <p class="job-card__meta">
+          <span class="location">{{ job['city_display'] or 'Location not specified' }}</span> ·
+          <span class="posted">{{ job['date_display'] }}</span>
+          {% if job['is_expired'] %}<span class="status status--expired">Expired</span>{% endif %}
+        </p>
+      </article>
+    {% endfor %}
+    </section>
+
+    <nav class="pager" aria-label="Pagination">
+      {% if p > 1 %}<a rel="prev" href="/board_b/jobs?p={{ p - 1 }}">&lsaquo; Prev</a>{% endif %}
+      {% for n in page_numbers %}
+        {% if n == p %}<span class="current">{{ n }}</span>
+        {% else %}<a href="/board_b/jobs?p={{ n }}">{{ n }}</a>{% endif %}
+      {% endfor %}
+      {% if p < pages %}<a rel="next" href="/board_b/jobs?p={{ p + 1 }}">Next &rsaquo;</a>{% endif %}
+    </nav>
+  </main>
+</body>
+</html>
