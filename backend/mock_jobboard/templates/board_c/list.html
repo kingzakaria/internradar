@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Annonces emploi &amp; stages – Board C</title>
+  <style>
+    body { font-family: "Trebuchet MS", sans-serif; margin: 0; background: #fafafa; color: #222; }
+    header { background: #0f5132; color: #fff; padding: 1rem 2rem; }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+    table.annonces { width: 100%; border-collapse: collapse; background: #fff; }
+    table.annonces th { text-align: left; background: #e9f5ee; padding: .6rem; font-size: .85rem; }
+    table.annonces td { padding: .6rem; border-top: 1px solid #e5e5e5; font-size: .92rem; }
+    table.annonces a { color: #0f5132; font-weight: bold; text-decoration: none; }
+    .tag-expire { background: #fde8e8; color: #b42318; padding: 2px 8px; border-radius: 10px; font-size: .8rem; }
+    .tag-active { color: #0f5132; font-size: .8rem; }
+    a.load-more { display: inline-block; margin-top: 1rem; padding: .6rem 1.2rem; background: #0f5132; color: #fff; border-radius: 4px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header><h1>Annonces emploi &amp; stages</h1></header>
+  <main>
+    <table class="annonces">
+      <thead>
+        <tr><th>Titre</th><th>Entreprise</th><th>Lieu</th><th>Publiée le</th><th>Statut</th></tr>
+      </thead>
+      <tbody>
+      {% for o in offers %}
+        <tr class="annonce">
+          <td class="col-titre"><a href="/board_c/emplois/{{ o['id'] }}">{{ o['title'] }}</a></td>
+          <td class="col-entreprise">{{ o['company'] }}</td>
+          <td class="col-lieu">{{ o['city_display'] or '—' }}</td>
+          <td class="col-date">{{ o['date_display'] }}</td>
+          <td class="col-statut">
+            {% if o['is_expired'] %}<span class="tag-expire">Expirée</span>
+            {% else %}<span class="tag-active">En ligne</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if next_cursor %}
+      <a class="load-more" rel="next" href="/board_c/emplois?cursor={{ next_cursor }}">Voir plus d'annonces</a>
+    {% endif %}
+  </main>
+</body>
+</html>

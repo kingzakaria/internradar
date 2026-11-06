@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ offer['title'] }} – Board C</title>
+  {# Structured data, like real job sites publish for search engines #}
+  <script type="application/ld+json">{{ jsonld | safe }}</script>
+  <style>
+    body { font-family: "Trebuchet MS", sans-serif; margin: 0; background: #fafafa; color: #222; }
+    header { background: #0f5132; color: #fff; padding: 1rem 2rem; }
+    header a { color: #fff; text-decoration: none; }
+    main { max-width: 760px; margin: 1.5rem auto; padding: 1.5rem; background: #fff; border-radius: 6px; }
+    .entreprise { color: #555; }
+    .description { line-height: 1.55; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <header><a href="/board_c/emplois">&larr; Toutes les annonces</a></header>
+  <main>
+    <h1>{{ offer['title'] }}</h1>
+    <p class="entreprise">{{ offer['company'] }}</p>
+    {# description_html comes from our own generator, so it is safe to render as HTML #}
+    <div class="description">{{ offer['description_html'] | safe }}</div>
+  </main>
+</body>
+</html>
