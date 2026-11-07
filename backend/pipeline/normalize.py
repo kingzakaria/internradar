@@ -85,11 +85,14 @@ def normalize_offer(raw: dict, reference_time: datetime | None = None) -> Offer:
     fetched_at = (
         datetime.fromisoformat(raw["scraped_at"]) if raw.get("scraped_at") else datetime.now(UTC)
     )
+    title = (raw.get("title") or "").strip()
+    if not title:
+        raise ValueError("offer has no title")
     city, country = normalize_city(raw.get("city_raw"))
     return Offer(
         source=raw["board"],
         source_id=raw.get("source_id"),
-        title=raw["title"].strip(),
+        title=title,
         company=raw.get("company"),
         city=city,
         country=country,
