@@ -89,6 +89,7 @@ def normalize_offer(raw: dict, reference_time: datetime | None = None) -> Offer:
     if not title:
         raise ValueError("offer has no title")
     city, country = normalize_city(raw.get("city_raw"))
+    country = country or raw.get("country_raw")  # some sites (JSON-LD) state the country themselves
     return Offer(
         source=raw["board"],
         source_id=raw.get("source_id"),

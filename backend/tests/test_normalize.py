@@ -102,6 +102,14 @@ def test_same_offer_on_two_boards_gets_the_same_dedup_key():
     assert on_a.dedup_key == on_b.dedup_key  # same offer...
     assert on_a.offer_id != on_b.offer_id  # ...but two distinct records
 
+def test_country_stated_by_the_site_is_used_when_the_city_is_unknown():
+    offer = normalize_offer({**RAW, "city_raw": "Bruxelles", "country_raw": "BE"}, REFERENCE)
+    assert (offer.city, offer.country) == ("Bruxelles", "BE")
+
+
+def test_known_city_wins_over_the_country_stated_by_the_site():
+    offer = normalize_offer({**RAW, "city_raw": "Casa", "country_raw": "FR"}, REFERENCE)
+    assert (offer.city, offer.country) == ("Casablanca", "MA")
 
 def test_offer_with_an_empty_url_value_is_rejected():
     with pytest.raises(ValidationError):

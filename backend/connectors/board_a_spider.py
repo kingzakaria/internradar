@@ -19,16 +19,9 @@ import scrapy
 from scrapy.http import Response
 
 from common.config import settings
+from common.text import clean
 
 NO_CITY_TEXT = "Lieu non précisé"  # what board A prints when an offer has no city
-
-
-def clean(text: str | None) -> str | None:
-    """Strip and collapse whitespace; empty text becomes None."""
-    if text is None:
-        return None
-    text = re.sub(r"\s+", " ", text).strip()
-    return text or None
 
 
 class BoardASpider(scrapy.Spider):
@@ -90,3 +83,4 @@ class BoardASpider(scrapy.Spider):
             "description_html": response.css("div.description").get(),
             "scraped_at": datetime.now(UTC).isoformat(),
         }
+        

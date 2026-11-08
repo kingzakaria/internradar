@@ -1,6 +1,20 @@
 import pytest
 
-from common.text import html_to_text
+from common.text import clean, html_to_text
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("  Atlas \n  Tech  ", "Atlas Tech"),
+        ("Casa", "Casa"),
+        ("   ", None),  # only spaces = nothing
+        ("", None),
+        (None, None),
+    ],
+)
+def test_clean(text, expected):
+    assert clean(text) == expected
 
 
 @pytest.mark.parametrize(

@@ -36,6 +36,12 @@ class _TextExtractor(HTMLParser):
         if not self._skip:
             self.parts.append(data)
 
+def clean(text: str | None) -> str | None:
+    """Strip and collapse whitespace; empty text becomes None."""
+    if text is None:
+        return None
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or None
 
 def html_to_text(html: str | None) -> str:
     """Strip tags, decode entities, collapse every run of whitespace into one space."""
