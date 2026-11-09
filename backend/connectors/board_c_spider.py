@@ -21,6 +21,7 @@ import scrapy
 from scrapy.http import Response
 
 from common.config import settings
+from common.sources import require_approved
 from common.text import clean
 
 
@@ -57,6 +58,7 @@ class BoardCSpider(scrapy.Spider):
 
     def __init__(self, base_url: str = "http://localhost:8000", max_pages: str | None = None, **kwargs):
         super().__init__(**kwargs)
+        require_approved(self.name)  # refuses to run if the source is not approved
         self.base_url = base_url.rstrip("/")
         self.max_pages = int(max_pages) if max_pages else None  # None = all pages
         self.pages_seen = 0
